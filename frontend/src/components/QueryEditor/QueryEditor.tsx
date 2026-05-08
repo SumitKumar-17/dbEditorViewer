@@ -51,7 +51,9 @@ export function QueryEditor() {
     },
   })
 
-  const handleRun = () => {
+  // Use a ref so the Monaco keybinding always sees the latest query/connectionId
+  const runRef = React.useRef<() => void>(() => {})
+  runRef.current = () => {
     if (!activeConnectionId) {
       toast({ title: 'No connection', description: 'Select a connection first', variant: 'destructive' })
       return
@@ -60,22 +62,12 @@ export function QueryEditor() {
     executeMutation.mutate()
   }
 
+  const handleRun = () => runRef.current()
+
   const handleEditorMount = (_editor: unknown, monaco: unknown) => {
-    const m = monaco as {
-      editor: {
-        addCommand: (mask: number, handler: () => void) => void
-      }
-      KeyMod: { CtrlCmd: number }
-      KeyCode: { Enter: number }
-    }
-    // Ctrl+Enter / Cmd+Enter to run
-    const monacoEditor = _editor as {
-      addCommand: (mask: number, handler: () => void) => void
-    }
-    monacoEditor.addCommand(
-      m.KeyMod.CtrlCmd | m.KeyCode.Enter,
-      handleRun
-    )
+    const m = monaco as { KeyMod: { CtrlCmd: number }; KeyCode: { Enter: number } }
+    const ed = _editor as { addCommand: (mask: number, handler: () => void) => void }
+    ed.addCommand(m.KeyMod.CtrlCmd | m.KeyCode.Enter, () => runRef.current())
   }
 
   return (

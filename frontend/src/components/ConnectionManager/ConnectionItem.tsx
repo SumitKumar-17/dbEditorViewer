@@ -45,10 +45,15 @@ function dbTypeLabel(type: Connection['type']) {
 
 export function ConnectionItem({ connection }: ConnectionItemProps) {
   const [expanded, setExpanded] = React.useState(false)
-  const { activeConnectionId, activeSchema, activeTable, setActiveConnection, setActiveSchema, setActiveTable, setActiveTab } = useUIStore()
+  const { activeConnectionId, activeSchema, activeTable, setActiveConnection, setActiveSchema } = useUIStore()
   const { removeConnection } = useConnectionsStore()
 
   const isActive = activeConnectionId === connection.id
+
+  // Auto-expand when this connection becomes the active one (e.g. just added)
+  React.useEffect(() => {
+    if (isActive) setExpanded(true)
+  }, [isActive]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const { data: schemas, isLoading: loadingSchemas, error: schemasError } = useQuery({
     queryKey: ['schemas', connection.id],
@@ -58,11 +63,16 @@ export function ConnectionItem({ connection }: ConnectionItemProps) {
     retry: 1,
   })
 
+  // Auto-select schema when there's only one (SQLite "main", MongoDB db name, etc.)
+  React.useEffect(() => {
+    if (isActive && schemas && schemas.length === 1 && !activeSchema) {
+      setActiveSchema(schemas[0])
+    }
+  }, [schemas, isActive, activeSchema, setActiveSchema])
+
   const handleExpand = () => {
     setExpanded((e) => !e)
-    if (!isActive) {
-      setActiveConnection(connection.id)
-    }
+    if (!isActive) setActiveConnection(connection.id)
   }
 
   const handleDelete = async () => {

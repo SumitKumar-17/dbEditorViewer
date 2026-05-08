@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   Dialog,
   DialogContent,
@@ -47,6 +48,7 @@ export function AddConnectionDialog({ open, onClose }: AddConnectionDialogProps)
 
   const { addConnection } = useConnectionsStore()
   const { setActiveConnection } = useUIStore()
+  const queryClient = useQueryClient()
 
   const detectedType = detectDBType(url)
 
@@ -96,7 +98,9 @@ export function AddConnectionDialog({ open, onClose }: AddConnectionDialogProps)
       const conn = await api.addConnection({ name: name.trim(), url: url.trim() })
       addConnection(conn)
       setActiveConnection(conn.id)
-      toast({ title: 'Connected', description: `Successfully connected to ${name}` })
+      // Invalidate so ConnectionList re-syncs with backend
+      queryClient.invalidateQueries({ queryKey: ['connections'] })
+      toast({ title: 'Connected', description: `Successfully connected to ${name.trim()}` })
       handleClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to connect')
