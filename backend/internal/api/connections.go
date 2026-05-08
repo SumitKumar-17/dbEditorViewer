@@ -94,6 +94,30 @@ func (h *ConnectionHandler) Delete(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "connection deleted"})
 }
 
+// TestURL handles POST /api/connections/test-url — tests a URL without persisting.
+func (h *ConnectionHandler) TestURL(c *gin.Context) {
+	var req struct {
+		URL string `json:"url" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	dbType := db.DetectDBType(req.URL)
+	if dbType == models.DBTypeUnknown {
+		c.JSON(http.StatusOK, gin.H{"ok": false, "message": "unrecognized database URL scheme"})
+		return
+	}
+
+	if err := h.manager.TestURL(req.URL, dbType); err != nil {
+		c.JSON(http.StatusOK, gin.H{"ok": false, "message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Connection successful", "type": dbType})
+}
+
 // Test handles POST /api/connections/:id/test — reconnects and tests the connection.
 func (h *ConnectionHandler) Test(c *gin.Context) {
 	id := c.Param("id")

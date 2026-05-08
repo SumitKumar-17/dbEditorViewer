@@ -64,6 +64,13 @@ export const api = {
     })
   },
 
+  testURL(url: string): Promise<{ ok: boolean; message: string; type?: string }> {
+    return request<{ ok: boolean; message: string; type?: string }>('/connections/test-url', {
+      method: 'POST',
+      body: JSON.stringify({ url }),
+    })
+  },
+
   // schema — routes under /db/:id/...
   getSchemas(id: string): Promise<string[]> {
     return request<string[]>(`/db/${id}/schemas`)

@@ -77,6 +77,20 @@ func (m *Manager) IsConnected(id string) bool {
 	return ok
 }
 
+// TestURL connects to a URL without persisting anything and returns an error if it fails.
+func (m *Manager) TestURL(url string, dbType models.DBType) error {
+	tempConn := &models.Connection{ID: "__test__", URL: url, Type: dbType}
+	drv, err := createDriver(tempConn)
+	if err != nil {
+		return fmt.Errorf("create driver: %w", err)
+	}
+	if err := drv.Connect(); err != nil {
+		return fmt.Errorf("connect: %w", err)
+	}
+	drv.Disconnect()
+	return nil
+}
+
 // DisconnectAll disconnects all active connections.
 func (m *Manager) DisconnectAll() {
 	m.mu.Lock()

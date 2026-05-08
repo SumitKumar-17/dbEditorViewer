@@ -67,18 +67,13 @@ export function AddConnectionDialog({ open, onClose }: AddConnectionDialogProps)
     setError('')
     setTestStatus('testing')
     try {
-      // First create the connection temporarily to test
-      const conn = await api.addConnection({ name: name || 'test', url })
-      const result = await api.testConnection(conn.id)
-      // Clean up test connection if test fails
-      if (!result.ok) {
-        await api.deleteConnection(conn.id)
-        setTestStatus('fail')
-        setTestMessage(result.message)
-      } else {
-        await api.deleteConnection(conn.id)
+      const result = await api.testURL(url)
+      if (result.ok) {
         setTestStatus('ok')
         setTestMessage(result.message || 'Connection successful!')
+      } else {
+        setTestStatus('fail')
+        setTestMessage(result.message || 'Connection failed')
       }
     } catch (err) {
       setTestStatus('fail')

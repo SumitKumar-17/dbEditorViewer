@@ -33,6 +33,7 @@ func SetupRouter(manager *db.Manager, connStore *store.ConnectionStore) *gin.Eng
 		api.GET("/connections", connHandler.List)
 		api.DELETE("/connections/:id", connHandler.Delete)
 		api.POST("/connections/:id/test", connHandler.Test)
+		api.POST("/connections/test-url", connHandler.TestURL)
 
 		// Schema browsing and data CRUD (grouped under /db/:id)
 		dbGroup := api.Group("/db/:id")
