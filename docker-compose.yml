@@ -16,8 +16,8 @@ services:
 
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: .                       # repo root (pnpm-lock.yaml lives here)
+      dockerfile: frontend/Dockerfile
     ports:
       - "5173:80"
     depends_on:
