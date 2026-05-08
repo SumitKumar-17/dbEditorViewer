@@ -2,20 +2,22 @@
 FROM node:22-alpine AS builder
 WORKDIR /app
 
-# Pin exact pnpm version to match the lockfile
 RUN npm install -g pnpm@10.18.3
 
-# Copy workspace manifests — better layer caching (deps change less than source)
+# Copy workspace manifests first (better layer caching)
 COPY pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
 COPY frontend/package.json ./frontend/
 
-# Install all frontend deps (shamefully-hoist puts binaries in /app/node_modules/.bin)
+# Install all frontend deps
 RUN pnpm install --frozen-lockfile
 
-# Copy source after deps are installed
+# Copy source after deps (so source changes don't bust the install cache)
 COPY frontend/ ./frontend/
 
-# Build from inside the package so pnpm finds workspace-root node_modules/.bin
+# Explicitly add workspace bin dir to PATH — Alpine sh doesn't get pnpm's
+# automatic PATH injection, so vite/tsc would be "not found" without this
+ENV PATH="/app/node_modules/.bin:${PATH}"
+
 WORKDIR /app/frontend
 RUN pnpm build
 
