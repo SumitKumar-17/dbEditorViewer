@@ -40,8 +40,9 @@ export function detectDBType(url: string): DBType {
 
 export const api = {
   // connections
-  listConnections(): Promise<Connection[]> {
-    return request<Connection[]>('/connections')
+  async listConnections(): Promise<Connection[]> {
+    const data = await request<Connection[] | null>('/connections')
+    return Array.isArray(data) ? data : []
   },
 
   addConnection(data: { name: string; url: string }): Promise<Connection> {

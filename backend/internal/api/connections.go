@@ -53,14 +53,12 @@ func (h *ConnectionHandler) Create(c *gin.Context) {
 
 	// Persist to store
 	if err := h.store.Add(conn); err != nil {
-		c.JSON(http.StatusCreated, gin.H{
-			"connection": safeConn(conn),
-			"warning":    "connection active but failed to persist: " + err.Error(),
-		})
+		// Still return the connection even if persistence failed
+		c.JSON(http.StatusCreated, safeConn(conn))
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"connection": safeConn(conn)})
+	c.JSON(http.StatusCreated, safeConn(conn))
 }
 
 // List handles GET /api/connections
@@ -78,7 +76,7 @@ func (h *ConnectionHandler) List(c *gin.Context) {
 		result = append(result, item)
 	}
 
-	c.JSON(http.StatusOK, gin.H{"connections": result})
+	c.JSON(http.StatusOK, result)
 }
 
 // Delete handles DELETE /api/connections/:id
@@ -120,11 +118,11 @@ func (h *ConnectionHandler) Test(c *gin.Context) {
 
 	// Reconnect (this also tests the connection)
 	if err := h.manager.Connect(found); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "connection test failed: " + err.Error(), "connected": false})
+		c.JSON(http.StatusOK, gin.H{"ok": false, "message": "connection test failed: " + err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "connection successful", "connected": true})
+	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "connection successful"})
 }
 
 // safeConn returns a connection map with the password masked.
