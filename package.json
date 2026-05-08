@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "dev": "concurrently -n backend,frontend -c cyan,magenta \"cd backend && go run .\" \"pnpm --filter frontend dev\"",
+    "start": "concurrently -n backend,frontend -c cyan,magenta \"cd backend && go run .\" \"pnpm --filter frontend dev\"",
     "docker:up": "docker compose up --build",
     "docker:down": "docker compose down",
     "typecheck": "pnpm --filter frontend typecheck"
