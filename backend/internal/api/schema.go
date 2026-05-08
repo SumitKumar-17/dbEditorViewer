@@ -32,7 +32,7 @@ func (h *SchemaHandler) GetSchemas(c *gin.Context) {
 	if schemas == nil {
 		schemas = []string{}
 	}
-	c.JSON(http.StatusOK, gin.H{"schemas": schemas})
+	c.JSON(http.StatusOK, schemas)
 }
 
 // GetTables handles GET /api/db/:id/tables?schema=X
@@ -58,7 +58,7 @@ func (h *SchemaHandler) GetTables(c *gin.Context) {
 	if tables == nil {
 		tables = []string{}
 	}
-	c.JSON(http.StatusOK, gin.H{"tables": tables, "schema": schema})
+	c.JSON(http.StatusOK, tables)
 }
 
 // GetTableSchema handles GET /api/db/:id/tables/:table/schema?schema=X
@@ -85,7 +85,7 @@ func (h *SchemaHandler) GetTableSchema(c *gin.Context) {
 	if cols == nil {
 		cols = []models.ColumnDef{}
 	}
-	c.JSON(http.StatusOK, gin.H{"columns": cols, "table": table, "schema": schema})
+	c.JSON(http.StatusOK, cols)
 }
 
 // GetIndexes handles GET /api/db/:id/tables/:table/indexes?schema=X
@@ -112,7 +112,7 @@ func (h *SchemaHandler) GetIndexes(c *gin.Context) {
 	if indexes == nil {
 		indexes = []models.IndexDef{}
 	}
-	c.JSON(http.StatusOK, gin.H{"indexes": indexes, "table": table, "schema": schema})
+	c.JSON(http.StatusOK, indexes)
 }
 
 // defaultSchema returns a sensible default schema for the given connection.

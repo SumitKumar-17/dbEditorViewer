@@ -85,7 +85,7 @@ func (h *DataHandler) InsertRow(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"row": row})
+	c.JSON(http.StatusCreated, row)
 }
 
 // UpdateRow handles PUT /api/db/:id/tables/:table/rows
@@ -119,7 +119,7 @@ func (h *DataHandler) UpdateRow(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"row": row})
+	c.JSON(http.StatusOK, row)
 }
 
 // DeleteRows handles DELETE /api/db/:id/tables/:table/rows
