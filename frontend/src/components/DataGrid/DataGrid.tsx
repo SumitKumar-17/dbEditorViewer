@@ -12,6 +12,7 @@ import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-alpine.css'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { exportCSV, exportJSON } from '@/lib/export'
 import { useUIStore } from '@/stores/ui'
 import { toast } from '@/hooks/useToast'
 import { GridToolbar } from './GridToolbar'
@@ -233,6 +234,8 @@ export function DataGrid() {
         onRefresh={() => refetch()}
         onPageChange={setPage}
         onLimitChange={(l) => { setLimit(l); setPage(1) }}
+        onExportCSV={() => exportCSV(activeTable || 'export', columns.map((c) => c.name), data?.rows || [])}
+        onExportJSON={() => exportJSON(activeTable || 'export', data?.rows || [])}
       />
       <div ref={containerRef} className={`${gridTheme} flex-1 w-full overflow-hidden`} style={{ height: '100%' }}>
         {isLoading ? (

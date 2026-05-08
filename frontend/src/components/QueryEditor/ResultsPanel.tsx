@@ -5,10 +5,11 @@ import {
   type GridApi,
   type GridReadyEvent,
 } from 'ag-grid-community'
-import { Clock, Rows, AlertCircle, Info } from 'lucide-react'
+import { Clock, Rows, AlertCircle, Info, Download } from 'lucide-react'
 import type { QueryResult } from '@/types'
 import { useUIStore } from '@/stores/ui'
 import { JsonCellRenderer, isJSONColumn } from '@/components/DataGrid/JsonCellRenderer'
+import { exportCSV } from '@/lib/export'
 
 interface ResultsPanelProps {
   result: QueryResult | null
@@ -105,19 +106,31 @@ export function ResultsPanel({ result, loading }: ResultsPanelProps) {
   return (
     <div className="flex flex-col h-full border-t border-gray-200 dark:border-gray-700">
       {/* Stats bar */}
-      <div className="flex items-center gap-4 px-4 py-2 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700 text-xs text-gray-500 flex-shrink-0">
-        <div className="flex items-center gap-1.5">
-          <Clock className="h-3.5 w-3.5" />
-          <span>{result.durationMs}ms</span>
+      <div className="flex items-center justify-between px-4 py-2 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700 text-xs text-gray-500 flex-shrink-0">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5">
+            <Clock className="h-3.5 w-3.5" />
+            <span>{result.durationMs}ms</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Rows className="h-3.5 w-3.5" />
+            <span>
+              {result.rows.length > 0
+                ? `${result.rows.length} rows returned`
+                : `${result.rowsAffected} rows affected`}
+            </span>
+          </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <Rows className="h-3.5 w-3.5" />
-          <span>
-            {result.rows.length > 0
-              ? `${result.rows.length} rows returned`
-              : `${result.rowsAffected} rows affected`}
-          </span>
-        </div>
+        {result.rows.length > 0 && (
+          <button
+            className="flex items-center gap-1 px-2 py-1 rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 text-xs"
+            title="Export as CSV"
+            onClick={() => exportCSV('query-result', result.columns, result.rows)}
+          >
+            <Download className="h-3.5 w-3.5" />
+            CSV
+          </button>
+        )}
       </div>
 
       {result.rows.length > 0 ? (

@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Database, PlugZap } from 'lucide-react'
+import { Database, PlugZap, Search, X } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { ConnectionItem } from './ConnectionItem'
 import { useConnectionsStore } from '@/stores/connections'
@@ -8,6 +8,7 @@ import { api } from '@/lib/api'
 
 export function ConnectionList() {
   const { connections, setConnections } = useConnectionsStore()
+  const [searchQuery, setSearchQuery] = React.useState('')
 
   const { isLoading, data } = useQuery({
     queryKey: ['connections'],
@@ -34,6 +35,29 @@ export function ConnectionList() {
         )}
       </div>
 
+      {/* Search input */}
+      <div className="px-3 py-2 border-b border-gray-800">
+        <div className="relative flex items-center">
+          <Search className="absolute left-2.5 h-3.5 w-3.5 text-gray-500 pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Filter tables…"
+            className="w-full bg-gray-900 border border-gray-700 rounded-md text-sm text-gray-300 placeholder-gray-500 focus:outline-none focus:border-indigo-500 pl-8 pr-7 py-1.5"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 text-gray-500 hover:text-gray-300 transition-colors"
+              aria-label="Clear search"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
       <ScrollArea className="flex-1">
         <div className="py-2">
           {isLoading ? (
@@ -53,7 +77,7 @@ export function ConnectionList() {
             </div>
           ) : (
             connections.map((conn) => (
-              <ConnectionItem key={conn.id} connection={conn} />
+              <ConnectionItem key={conn.id} connection={conn} searchQuery={searchQuery} />
             ))
           )}
         </div>

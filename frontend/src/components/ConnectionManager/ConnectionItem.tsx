@@ -21,6 +21,7 @@ import type { Connection } from '@/types'
 
 interface ConnectionItemProps {
   connection: Connection
+  searchQuery: string
 }
 
 function dbTypeColor(type: Connection['type']) {
@@ -43,7 +44,7 @@ function dbTypeLabel(type: Connection['type']) {
   }
 }
 
-export function ConnectionItem({ connection }: ConnectionItemProps) {
+export function ConnectionItem({ connection, searchQuery }: ConnectionItemProps) {
   const [expanded, setExpanded] = React.useState(false)
   const { activeConnectionId, activeSchema, activeTable, setActiveConnection, setActiveSchema } = useUIStore()
   const { removeConnection } = useConnectionsStore()
@@ -54,6 +55,11 @@ export function ConnectionItem({ connection }: ConnectionItemProps) {
   React.useEffect(() => {
     if (isActive) setExpanded(true)
   }, [isActive]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-expand when a search query is active so filtered tables are visible
+  React.useEffect(() => {
+    if (searchQuery) setExpanded(true)
+  }, [searchQuery])
 
   const { data: schemas, isLoading: loadingSchemas, error: schemasError } = useQuery({
     queryKey: ['schemas', connection.id],
@@ -166,6 +172,7 @@ export function ConnectionItem({ connection }: ConnectionItemProps) {
                 schema={schema}
                 connectionId={connection.id}
                 dbType={connection.type}
+                searchQuery={searchQuery}
               />
             ))
           ) : (
@@ -181,9 +188,10 @@ interface SchemaItemProps {
   schema: string
   connectionId: string
   dbType: Connection['type']
+  searchQuery: string
 }
 
-function SchemaItem({ schema, connectionId, dbType }: SchemaItemProps) {
+function SchemaItem({ schema, connectionId, dbType, searchQuery }: SchemaItemProps) {
   const [expanded, setExpanded] = React.useState(false)
   const { activeSchema, activeTable, setActiveSchema, setActiveTable, setActiveTab } = useUIStore()
 
@@ -205,10 +213,29 @@ function SchemaItem({ schema, connectionId, dbType }: SchemaItemProps) {
     }
   }, [showSchemaLevel])
 
+  // Auto-expand when a search query is active
+  React.useEffect(() => {
+    if (searchQuery) setExpanded(true)
+  }, [searchQuery])
+
   const handleTableClick = (table: string) => {
     setActiveSchema(schema)
     setActiveTable(table)
     setActiveTab('data')
+  }
+
+  const lowerQuery = searchQuery.toLowerCase()
+
+  // Filter tables by search query (case-insensitive); if no query, show all
+  const filteredTables = tables
+    ? searchQuery
+      ? tables.filter((t) => t.toLowerCase().includes(lowerQuery))
+      : tables
+    : undefined
+
+  // When searching, hide this schema entirely if it has no matching tables
+  if (searchQuery && filteredTables && filteredTables.length === 0) {
+    return null
   }
 
   if (!showSchemaLevel) {
@@ -219,10 +246,11 @@ function SchemaItem({ schema, connectionId, dbType }: SchemaItemProps) {
             <Loader2 className="h-3 w-3 animate-spin" />
             Loading tables...
           </div>
-        ) : tables?.map((table) => (
+        ) : filteredTables?.map((table) => (
           <TableItem
             key={table}
             table={table}
+            searchQuery={searchQuery}
             isActive={activeTable === table && activeSchema === schema}
             onClick={() => handleTableClick(table)}
           />
@@ -250,8 +278,8 @@ function SchemaItem({ schema, connectionId, dbType }: SchemaItemProps) {
         )}
         <Layers className="h-3.5 w-3.5 text-gray-500 flex-shrink-0" />
         <span className="text-xs text-gray-400">{schema}</span>
-        {tables && (
-          <span className="ml-auto text-xs text-gray-600">{tables.length}</span>
+        {filteredTables && (
+          <span className="ml-auto text-xs text-gray-600">{filteredTables.length}</span>
         )}
       </button>
 
@@ -262,10 +290,11 @@ function SchemaItem({ schema, connectionId, dbType }: SchemaItemProps) {
               <Loader2 className="h-3 w-3 animate-spin" />
               Loading tables...
             </div>
-          ) : tables?.map((table) => (
+          ) : filteredTables?.map((table) => (
             <TableItem
               key={table}
               table={table}
+              searchQuery={searchQuery}
               isActive={activeTable === table && activeSchema === schema}
               onClick={() => handleTableClick(table)}
             />
@@ -280,9 +309,30 @@ interface TableItemProps {
   table: string
   isActive: boolean
   onClick: () => void
+  searchQuery: string
 }
 
-function TableItem({ table, isActive, onClick }: TableItemProps) {
+function HighlightedText({ text, query }: { text: string; query: string }) {
+  if (!query) return <>{text}</>
+
+  const lowerText = text.toLowerCase()
+  const lowerQuery = query.toLowerCase()
+  const idx = lowerText.indexOf(lowerQuery)
+
+  if (idx === -1) return <>{text}</>
+
+  return (
+    <>
+      {text.slice(0, idx)}
+      <mark className="bg-indigo-200 dark:bg-indigo-800 rounded-sm text-inherit">
+        {text.slice(idx, idx + query.length)}
+      </mark>
+      {text.slice(idx + query.length)}
+    </>
+  )
+}
+
+function TableItem({ table, isActive, onClick, searchQuery }: TableItemProps) {
   return (
     <button
       onClick={onClick}
@@ -293,7 +343,7 @@ function TableItem({ table, isActive, onClick }: TableItemProps) {
     >
       <Table2 className={cn('h-3.5 w-3.5 flex-shrink-0', isActive ? 'text-indigo-400' : 'text-gray-500')} />
       <span className={cn('text-xs truncate', isActive ? 'text-indigo-200 font-medium' : 'text-gray-400')}>
-        {table}
+        <HighlightedText text={table} query={searchQuery} />
       </span>
     </button>
   )

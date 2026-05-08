@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Plus, Trash2, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, Trash2, RefreshCw, ChevronLeft, ChevronRight, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -14,6 +14,8 @@ interface GridToolbarProps {
   onRefresh: () => void
   onPageChange: (page: number) => void
   onLimitChange: (limit: number) => void
+  onExportCSV?: () => void
+  onExportJSON?: () => void
 }
 
 const PAGE_SIZES = [25, 50, 100, 200]
@@ -29,6 +31,8 @@ export function GridToolbar({
   onRefresh,
   onPageChange,
   onLimitChange,
+  onExportCSV,
+  onExportJSON,
 }: GridToolbarProps) {
   const totalPages = Math.max(1, Math.ceil(totalRows / limit))
   const startRow = (page - 1) * limit + 1
@@ -74,6 +78,32 @@ export function GridToolbar({
       </div>
 
       <div className="flex items-center gap-3">
+        {(onExportCSV || onExportJSON) && (
+          <details className="relative">
+            <summary className="list-none inline-flex items-center justify-center rounded-md text-xs font-medium border border-input bg-background hover:bg-accent hover:text-accent-foreground h-8 px-3 cursor-pointer select-none">
+              <Download className="h-3.5 w-3.5 mr-1" />
+              Export
+            </summary>
+            <div className="absolute right-0 top-full mt-1 z-50 min-w-[160px] rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-lg py-1">
+              {onExportCSV && (
+                <button
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 dark:hover:bg-gray-800"
+                  onClick={onExportCSV}
+                >
+                  Export as CSV
+                </button>
+              )}
+              {onExportJSON && (
+                <button
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 dark:hover:bg-gray-800"
+                  onClick={onExportJSON}
+                >
+                  Export as JSON
+                </button>
+              )}
+            </div>
+          </details>
+        )}
         <div className="flex items-center gap-1">
           <select
             value={limit}
