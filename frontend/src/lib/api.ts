@@ -1,6 +1,7 @@
 import type { Connection, ColumnDef, IndexDef, DataResult, QueryResult, DBType } from '@/types'
 
-const BASE = 'http://localhost:3001/api'
+// In dev: Vite proxies /api → localhost:3001. In Docker: Nginx proxies /api → backend:3001.
+const BASE = '/api'
 
 async function request<T>(
   path: string,

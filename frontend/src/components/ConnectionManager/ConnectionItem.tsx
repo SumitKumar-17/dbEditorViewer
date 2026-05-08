@@ -50,11 +50,12 @@ export function ConnectionItem({ connection }: ConnectionItemProps) {
 
   const isActive = activeConnectionId === connection.id
 
-  const { data: schemas, isLoading: loadingSchemas } = useQuery({
+  const { data: schemas, isLoading: loadingSchemas, error: schemasError } = useQuery({
     queryKey: ['schemas', connection.id],
     queryFn: () => api.getSchemas(connection.id),
     enabled: expanded,
     staleTime: 30000,
+    retry: 1,
   })
 
   const handleExpand = () => {
@@ -143,6 +144,10 @@ export function ConnectionItem({ connection }: ConnectionItemProps) {
             <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-gray-500">
               <Loader2 className="h-3 w-3 animate-spin" />
               Loading schemas...
+            </div>
+          ) : schemasError ? (
+            <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-red-400">
+              <span>⚠ Connection lost — try reconnecting</span>
             </div>
           ) : schemas && schemas.length > 0 ? (
             schemas.map((schema) => (

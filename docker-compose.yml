@@ -1,0 +1,28 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    volumes:
+      - dbeditor-data:/root/.dbeditor
+    environment:
+      - GIN_MODE=release
+      - PORT=3001
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # lets backend reach local DBs on the host
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  dbeditor-data:

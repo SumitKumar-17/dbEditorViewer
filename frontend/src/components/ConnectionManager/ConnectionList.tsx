@@ -9,16 +9,16 @@ import { api } from '@/lib/api'
 export function ConnectionList() {
   const { connections, setConnections } = useConnectionsStore()
 
-  const { isLoading } = useQuery({
+  const { isLoading, data } = useQuery({
     queryKey: ['connections'],
-    queryFn: async () => {
-      const list = await api.listConnections()
-      setConnections(list)
-      return list
-    },
+    queryFn: () => api.listConnections(),
     staleTime: 60000,
     refetchOnWindowFocus: false,
   })
+
+  React.useEffect(() => {
+    if (data) setConnections(data)
+  }, [data, setConnections])
 
   return (
     <div className="flex flex-col h-full">
