@@ -63,24 +63,24 @@ export const api = {
     })
   },
 
-  // schema
+  // schema — routes under /db/:id/...
   getSchemas(id: string): Promise<string[]> {
-    return request<string[]>(`/connections/${id}/schemas`)
+    return request<string[]>(`/db/${id}/schemas`)
   },
 
   getTables(id: string, schema: string): Promise<string[]> {
-    return request<string[]>(`/connections/${id}/schemas/${encodeURIComponent(schema)}/tables`)
+    return request<string[]>(`/db/${id}/tables?schema=${encodeURIComponent(schema)}`)
   },
 
   getTableSchema(id: string, schema: string, table: string): Promise<ColumnDef[]> {
     return request<ColumnDef[]>(
-      `/connections/${id}/schemas/${encodeURIComponent(schema)}/tables/${encodeURIComponent(table)}/columns`
+      `/db/${id}/tables/${encodeURIComponent(table)}/schema?schema=${encodeURIComponent(schema)}`
     )
   },
 
   getIndexes(id: string, schema: string, table: string): Promise<IndexDef[]> {
     return request<IndexDef[]>(
-      `/connections/${id}/schemas/${encodeURIComponent(schema)}/tables/${encodeURIComponent(table)}/indexes`
+      `/db/${id}/tables/${encodeURIComponent(table)}/indexes?schema=${encodeURIComponent(schema)}`
     )
   },
 
@@ -92,12 +92,13 @@ export const api = {
     opts: { page?: number; limit?: number; sort?: string; dir?: string }
   ): Promise<DataResult> {
     const params = new URLSearchParams()
+    params.set('schema', schema)
     if (opts.page !== undefined) params.set('page', String(opts.page))
     if (opts.limit !== undefined) params.set('limit', String(opts.limit))
     if (opts.sort) params.set('sort', opts.sort)
     if (opts.dir) params.set('dir', opts.dir)
     return request<DataResult>(
-      `/connections/${id}/schemas/${encodeURIComponent(schema)}/tables/${encodeURIComponent(table)}/data?${params}`
+      `/db/${id}/tables/${encodeURIComponent(table)}/data?${params}`
     )
   },
 
@@ -108,7 +109,7 @@ export const api = {
     data: Record<string, unknown>
   ): Promise<Record<string, unknown>> {
     return request<Record<string, unknown>>(
-      `/connections/${id}/schemas/${encodeURIComponent(schema)}/tables/${encodeURIComponent(table)}/data`,
+      `/db/${id}/tables/${encodeURIComponent(table)}/rows?schema=${encodeURIComponent(schema)}`,
       {
         method: 'POST',
         body: JSON.stringify(data),
@@ -124,7 +125,7 @@ export const api = {
     data: Record<string, unknown>
   ): Promise<Record<string, unknown>> {
     return request<Record<string, unknown>>(
-      `/connections/${id}/schemas/${encodeURIComponent(schema)}/tables/${encodeURIComponent(table)}/data`,
+      `/db/${id}/tables/${encodeURIComponent(table)}/rows?schema=${encodeURIComponent(schema)}`,
       {
         method: 'PUT',
         body: JSON.stringify({ pk, data }),
@@ -139,7 +140,7 @@ export const api = {
     pks: Record<string, unknown>[]
   ): Promise<void> {
     return request<void>(
-      `/connections/${id}/schemas/${encodeURIComponent(schema)}/tables/${encodeURIComponent(table)}/data`,
+      `/db/${id}/tables/${encodeURIComponent(table)}/rows?schema=${encodeURIComponent(schema)}`,
       {
         method: 'DELETE',
         body: JSON.stringify({ pks }),
@@ -149,7 +150,7 @@ export const api = {
 
   // query
   executeQuery(id: string, query: string): Promise<QueryResult> {
-    return request<QueryResult>(`/connections/${id}/query`, {
+    return request<QueryResult>(`/db/${id}/query`, {
       method: 'POST',
       body: JSON.stringify({ query }),
     })

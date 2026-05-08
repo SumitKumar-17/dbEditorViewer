@@ -1,8 +1,6 @@
 import * as React from 'react'
 import { AgGridReact } from 'ag-grid-react'
 import {
-  ModuleRegistry,
-  ClientSideRowModelModule,
   type ColDef,
   type GridReadyEvent,
   type CellValueChangedEvent,
@@ -18,8 +16,6 @@ import { toast } from '@/hooks/useToast'
 import { GridToolbar } from './GridToolbar'
 import { Key, AlertCircle } from 'lucide-react'
 import type { ColumnDef } from '@/types'
-
-ModuleRegistry.registerModules([ClientSideRowModelModule])
 
 export function DataGrid() {
   const { activeConnectionId, activeSchema, activeTable, theme } = useUIStore()
@@ -181,7 +177,7 @@ export function DataGrid() {
         onPageChange={setPage}
         onLimitChange={(l) => { setLimit(l); setPage(1) }}
       />
-      <div className={`${gridTheme} flex-1 w-full overflow-hidden`}>
+      <div className={`${gridTheme} flex-1 w-full overflow-hidden`} style={{ height: '100%' }}>
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
             <div className="flex flex-col items-center gap-3 text-gray-500">
@@ -212,8 +208,6 @@ export function DataGrid() {
             suppressRowClickSelection={true}
             rowHeight={36}
             headerHeight={40}
-            domLayout="normal"
-            containerStyle={{ height: '100%', width: '100%' }}
           />
         )}
       </div>

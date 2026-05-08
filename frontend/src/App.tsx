@@ -14,6 +14,42 @@ const queryClient = new QueryClient({
   },
 })
 
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props)
+    this.state = { error: null }
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { error }
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="flex h-screen items-center justify-center bg-gray-950 text-white p-8">
+          <div className="max-w-lg space-y-4">
+            <h1 className="text-xl font-bold text-red-400">Something went wrong</h1>
+            <pre className="text-xs bg-gray-900 rounded p-4 overflow-auto text-gray-300 whitespace-pre-wrap">
+              {this.state.error.message}
+              {'\n'}
+              {this.state.error.stack}
+            </pre>
+            <button
+              onClick={() => this.setState({ error: null })}
+              className="px-4 py-2 bg-indigo-600 rounded text-sm hover:bg-indigo-500"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
 function ThemeInitializer() {
   const { theme } = useUIStore()
   React.useEffect(() => {
@@ -24,12 +60,14 @@ function ThemeInitializer() {
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <ThemeInitializer />
-        <AppShell />
-        <Toaster />
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <ThemeInitializer />
+          <AppShell />
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   )
 }
