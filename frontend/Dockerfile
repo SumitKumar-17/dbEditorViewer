@@ -1,24 +1,23 @@
-# Build context must be the repo root (set in docker-compose.yml)
-# so we can access pnpm-lock.yaml and pnpm-workspace.yaml
-
+# Build context must be the repo root (docker-compose.yml sets context: .)
 FROM node:22-alpine AS builder
 WORKDIR /app
 
-# Enable pnpm via corepack (ships with Node 22)
-RUN corepack enable && corepack prepare pnpm@10 --activate
+# Pin exact pnpm version to match the lockfile
+RUN npm install -g pnpm@10.18.3
 
-# Copy workspace manifests first (better layer caching)
+# Copy workspace manifests — better layer caching (deps change less than source)
 COPY pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
 COPY frontend/package.json ./frontend/
 
-# Install only frontend deps
-RUN pnpm install --frozen-lockfile --filter frontend
+# Install all frontend deps (shamefully-hoist puts binaries in /app/node_modules/.bin)
+RUN pnpm install --frozen-lockfile
 
-# Copy frontend source
+# Copy source after deps are installed
 COPY frontend/ ./frontend/
 
-# Build Vite app (outputs to frontend/dist)
-RUN pnpm --filter frontend build
+# Build from inside the package so pnpm finds workspace-root node_modules/.bin
+WORKDIR /app/frontend
+RUN pnpm build
 
 # ── Production image ───────────────────────────────────────────
 FROM nginx:1.27-alpine
