@@ -2,6 +2,7 @@ import * as React from 'react'
 import { AgGridReact } from 'ag-grid-react'
 import {
   type ColDef,
+  type GridApi,
   type GridReadyEvent,
   type CellValueChangedEvent,
   type SelectionChangedEvent,
@@ -14,7 +15,8 @@ import { api } from '@/lib/api'
 import { useUIStore } from '@/stores/ui'
 import { toast } from '@/hooks/useToast'
 import { GridToolbar } from './GridToolbar'
-import { Key, AlertCircle } from 'lucide-react'
+import { Key, AlertCircle, AlertTriangle } from 'lucide-react'
+import { JsonCellRenderer, isJSONColumn } from './JsonCellRenderer'
 import type { ColumnDef } from '@/types'
 
 export function DataGrid() {
@@ -23,6 +25,8 @@ export function DataGrid() {
   const [limit, setLimit] = React.useState(50)
   const [selectedNodes, setSelectedNodes] = React.useState<IRowNode[]>([])
   const gridRef = React.useRef<AgGridReact>(null)
+  const gridApiRef = React.useRef<GridApi | null>(null)
+  const containerRef = React.useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
 
   const queryKey = ['data', activeConnectionId, activeSchema, activeTable, page, limit]
@@ -40,6 +44,16 @@ export function DataGrid() {
     setPage(1)
     setSelectedNodes([])
   }, [activeConnectionId, activeSchema, activeTable])
+
+  // Auto-fit columns when container resizes
+  React.useEffect(() => {
+    if (!containerRef.current) return
+    const observer = new ResizeObserver(() => {
+      gridApiRef.current?.sizeColumnsToFit()
+    })
+    observer.observe(containerRef.current)
+    return () => observer.disconnect()
+  }, [])
 
   const updateMutation = useMutation({
     mutationFn: ({
@@ -85,29 +99,60 @@ export function DataGrid() {
 
   const columns: ColumnDef[] = data?.columns || []
   const pkColumns = columns.filter((c) => c.isPrimaryKey).map((c) => c.name)
+  const hasPK = pkColumns.length > 0
+
+  const handleJsonEdit = React.useCallback(
+    (colName: string, rowData: Record<string, unknown>, newValue: unknown) => {
+      const pk: Record<string, unknown> = {}
+      for (const pkCol of pkColumns) {
+        pk[pkCol] = rowData[pkCol]
+      }
+      updateMutation.mutate({ pk, rowData: { [colName]: newValue } })
+    },
+    [pkColumns, updateMutation]
+  )
 
   const colDefs: ColDef[] = React.useMemo(() => {
     if (!columns.length) return []
-    return columns.map((col) => ({
-      field: col.name,
-      headerName: col.name,
-      editable: !col.isPrimaryKey,
-      sortable: true,
-      resizable: true,
-      filter: true,
-      minWidth: 80,
-      headerComponent: col.isPrimaryKey ? PKHeaderComponent : undefined,
-      headerComponentParams: col.isPrimaryKey ? { displayName: col.name } : undefined,
-      cellStyle: col.isPrimaryKey
-        ? { color: '#818cf8', fontWeight: '500' }
-        : undefined,
-      valueFormatter: (params: { value: unknown }) => {
-        if (params.value === null || params.value === undefined) return ''
-        if (typeof params.value === 'object') return JSON.stringify(params.value)
-        return String(params.value)
-      },
-    }))
-  }, [columns]) // eslint-disable-line react-hooks/exhaustive-deps
+    return columns.map((col) => {
+      const jsonCol = isJSONColumn(col.dataType, undefined)
+      return {
+        field: col.name,
+        headerName: col.name,
+        editable: hasPK && !col.isPrimaryKey && !jsonCol,
+        sortable: true,
+        resizable: true,
+        filter: true,
+        minWidth: jsonCol ? 180 : 80,
+        headerComponent: col.isPrimaryKey ? PKHeaderComponent : undefined,
+        headerComponentParams: col.isPrimaryKey ? { displayName: col.name } : undefined,
+        cellStyle: col.isPrimaryKey
+          ? { color: '#818cf8', fontWeight: '500' }
+          : undefined,
+        ...(jsonCol
+          ? {
+              cellRenderer: (params: { value: unknown; data: Record<string, unknown> }) => (
+                <JsonCellRenderer
+                  value={params.value}
+                  columnName={col.name}
+                  onEdit={
+                    hasPK
+                      ? (newVal) => handleJsonEdit(col.name, params.data, newVal)
+                      : undefined
+                  }
+                />
+              ),
+            }
+          : {
+              valueFormatter: (params: { value: unknown }) => {
+                if (params.value === null || params.value === undefined) return ''
+                if (typeof params.value === 'object') return JSON.stringify(params.value)
+                return String(params.value)
+              },
+            }),
+      }
+    })
+  }, [columns, hasPK, handleJsonEdit]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const onCellValueChanged = React.useCallback(
     (event: CellValueChangedEvent) => {
@@ -116,7 +161,12 @@ export function DataGrid() {
       for (const pkCol of pkColumns) {
         pk[pkCol] = rowData[pkCol]
       }
-      updateMutation.mutate({ pk, rowData })
+      // Strip PK columns from the changed data payload
+      const changedData: Record<string, unknown> = {}
+      for (const [k, v] of Object.entries(rowData)) {
+        if (!pkColumns.includes(k)) changedData[k] = v
+      }
+      updateMutation.mutate({ pk, rowData: changedData })
     },
     [pkColumns, updateMutation]
   )
@@ -126,6 +176,7 @@ export function DataGrid() {
   }, [])
 
   const onGridReady = React.useCallback((event: GridReadyEvent) => {
+    gridApiRef.current = event.api
     event.api.sizeColumnsToFit()
   }, [])
 
@@ -165,6 +216,12 @@ export function DataGrid() {
 
   return (
     <div className="flex flex-col h-full">
+      {!isLoading && columns.length > 0 && !hasPK && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800 text-xs text-amber-700 dark:text-amber-400 flex-shrink-0">
+          <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+          This table has no primary key — editing and deleting rows is disabled.
+        </div>
+      )}
       <GridToolbar
         totalRows={data?.total || 0}
         page={page}
@@ -177,7 +234,7 @@ export function DataGrid() {
         onPageChange={setPage}
         onLimitChange={(l) => { setLimit(l); setPage(1) }}
       />
-      <div className={`${gridTheme} flex-1 w-full overflow-hidden`} style={{ height: '100%' }}>
+      <div ref={containerRef} className={`${gridTheme} flex-1 w-full overflow-hidden`} style={{ height: '100%' }}>
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
             <div className="flex flex-col items-center gap-3 text-gray-500">
@@ -194,7 +251,6 @@ export function DataGrid() {
             rowData={data?.rows || []}
             columnDefs={colDefs}
             defaultColDef={{
-              editable: true,
               resizable: true,
               sortable: true,
               filter: true,
@@ -204,8 +260,9 @@ export function DataGrid() {
             onCellValueChanged={onCellValueChanged}
             onSelectionChanged={onSelectionChanged}
             onGridReady={onGridReady}
-            animateRows={true}
+            animateRows={false}
             suppressRowClickSelection={true}
+            rowBuffer={30}
             rowHeight={36}
             headerHeight={40}
           />

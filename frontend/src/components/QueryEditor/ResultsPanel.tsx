@@ -1,15 +1,14 @@
 import * as React from 'react'
 import { AgGridReact } from 'ag-grid-react'
 import {
-  ModuleRegistry,
-  ClientSideRowModelModule,
   type ColDef,
+  type GridApi,
+  type GridReadyEvent,
 } from 'ag-grid-community'
 import { Clock, Rows, AlertCircle, Info } from 'lucide-react'
 import type { QueryResult } from '@/types'
 import { useUIStore } from '@/stores/ui'
-
-ModuleRegistry.registerModules([ClientSideRowModelModule])
+import { JsonCellRenderer, isJSONColumn } from '@/components/DataGrid/JsonCellRenderer'
 
 interface ResultsPanelProps {
   result: QueryResult | null
@@ -19,6 +18,23 @@ interface ResultsPanelProps {
 export function ResultsPanel({ result, loading }: ResultsPanelProps) {
   const { theme } = useUIStore()
   const gridTheme = theme === 'dark' ? 'ag-theme-alpine-dark' : 'ag-theme-alpine'
+  const gridApiRef = React.useRef<GridApi | null>(null)
+  const containerRef = React.useRef<HTMLDivElement>(null)
+
+  // Auto-fit columns when container resizes
+  React.useEffect(() => {
+    if (!containerRef.current) return
+    const observer = new ResizeObserver(() => {
+      gridApiRef.current?.sizeColumnsToFit()
+    })
+    observer.observe(containerRef.current)
+    return () => observer.disconnect()
+  }, [])
+
+  const onGridReady = React.useCallback((event: GridReadyEvent) => {
+    gridApiRef.current = event.api
+    event.api.sizeColumnsToFit()
+  }, [])
 
   if (loading) {
     return (
@@ -53,26 +69,38 @@ export function ResultsPanel({ result, loading }: ResultsPanelProps) {
     )
   }
 
-  const colDefs: ColDef[] = result.columns.map((col) => ({
-    field: col,
-    headerName: col,
-    editable: false,
-    resizable: true,
-    sortable: true,
-    filter: true,
-    minWidth: 80,
-    valueFormatter: (params: { value: unknown }) => {
-      if (params.value === null || params.value === undefined) return 'NULL'
-      if (typeof params.value === 'object') return JSON.stringify(params.value)
-      return String(params.value)
-    },
-    cellStyle: (params: { value: unknown }) => {
-      if (params.value === null || params.value === undefined) {
-        return { color: '#9ca3af', fontStyle: 'italic' }
-      }
-      return null
-    },
-  }))
+  const colDefs: ColDef[] = result.columns.map((col) => {
+    const firstVal = result.rows[0]?.[col]
+    const jsonCol = isJSONColumn('', firstVal)
+    return {
+      field: col,
+      headerName: col,
+      editable: false,
+      resizable: true,
+      sortable: true,
+      filter: true,
+      minWidth: jsonCol ? 180 : 80,
+      ...(jsonCol
+        ? {
+            cellRenderer: (params: { value: unknown }) => (
+              <JsonCellRenderer value={params.value} columnName={col} />
+            ),
+          }
+        : {
+            valueFormatter: (params: { value: unknown }) => {
+              if (params.value === null || params.value === undefined) return 'NULL'
+              if (typeof params.value === 'object') return JSON.stringify(params.value)
+              return String(params.value)
+            },
+            cellStyle: (params: { value: unknown }) => {
+              if (params.value === null || params.value === undefined) {
+                return { color: '#9ca3af', fontStyle: 'italic' }
+              }
+              return null
+            },
+          }),
+    }
+  })
 
   return (
     <div className="flex flex-col h-full border-t border-gray-200 dark:border-gray-700">
@@ -93,7 +121,7 @@ export function ResultsPanel({ result, loading }: ResultsPanelProps) {
       </div>
 
       {result.rows.length > 0 ? (
-        <div className={`${gridTheme} flex-1 overflow-hidden`}>
+        <div ref={containerRef} className={`${gridTheme} flex-1 overflow-hidden`} style={{ height: '100%' }}>
           <AgGridReact
             rowData={result.rows}
             columnDefs={colDefs}
@@ -103,10 +131,9 @@ export function ResultsPanel({ result, loading }: ResultsPanelProps) {
               sortable: true,
               filter: true,
             }}
+            onGridReady={onGridReady}
             rowHeight={34}
             headerHeight={38}
-            domLayout="normal"
-            containerStyle={{ height: '100%', width: '100%' }}
             animateRows={false}
           />
         </div>

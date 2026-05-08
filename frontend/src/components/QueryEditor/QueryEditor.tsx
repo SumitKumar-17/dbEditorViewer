@@ -15,8 +15,8 @@ export function QueryEditor() {
   const { activeConnectionId, activeSchema, activeTable, theme } = useUIStore()
   const { connections } = useConnectionsStore()
   const [query, setQuery] = React.useState(() => {
-    if (activeTable) {
-      return `SELECT *\nFROM ${activeSchema ? `${activeSchema}.` : ''}${activeTable}\nLIMIT 100;`
+    if (activeTable && activeSchema) {
+      return `SELECT *\nFROM "${activeSchema}"."${activeTable}"\nLIMIT 100;`
     }
     return '-- Write your SQL query here\nSELECT 1;'
   })
@@ -29,9 +29,7 @@ export function QueryEditor() {
   // Update query when table changes
   React.useEffect(() => {
     if (activeTable && activeSchema) {
-      setQuery(`SELECT *\nFROM ${activeSchema}.${activeTable}\nLIMIT 100;`)
-    } else if (activeTable) {
-      setQuery(`SELECT *\nFROM ${activeTable}\nLIMIT 100;`)
+      setQuery(`SELECT *\nFROM "${activeSchema}"."${activeTable}"\nLIMIT 100;`)
     }
   }, [activeTable, activeSchema])
 

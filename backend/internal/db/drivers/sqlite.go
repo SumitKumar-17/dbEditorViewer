@@ -236,7 +236,7 @@ func (d *SQLiteDriver) GetData(opts models.QueryOpts) (*models.DataResult, error
 		}
 		row := make(map[string]interface{}, len(colNames))
 		for i, name := range colNames {
-			row[name] = vals[i]
+			row[name] = normalizeVal(vals[i])
 		}
 		resultRows = append(resultRows, row)
 	}
@@ -244,13 +244,29 @@ func (d *SQLiteDriver) GetData(opts models.QueryOpts) (*models.DataResult, error
 		return nil, err
 	}
 
+	// Fetch PK columns via PRAGMA table_info.
+	pkSet := map[string]bool{}
+	pragmaRows, pragmaErr := d.sqlDB.Query(fmt.Sprintf(`PRAGMA table_info("%s")`, opts.Table))
+	if pragmaErr == nil {
+		defer pragmaRows.Close()
+		for pragmaRows.Next() {
+			var cid, notNull, pk int
+			var name, dataType string
+			var dfltValue sql.NullString
+			if pragmaRows.Scan(&cid, &name, &dataType, &notNull, &dfltValue, &pk) == nil && pk > 0 {
+				pkSet[name] = true
+			}
+		}
+	}
+
 	cols := make([]models.ColumnDef, len(colNames))
 	for i, ct := range colTypes {
 		nullable, _ := ct.Nullable()
 		cols[i] = models.ColumnDef{
-			Name:       ct.Name(),
-			DataType:   ct.DatabaseTypeName(),
-			IsNullable: nullable,
+			Name:         ct.Name(),
+			DataType:     ct.DatabaseTypeName(),
+			IsNullable:   nullable,
+			IsPrimaryKey: pkSet[ct.Name()],
 		}
 	}
 
@@ -304,6 +320,9 @@ func (d *SQLiteDriver) UpdateRow(schema, table string, pk map[string]interface{}
 	if len(data) == 0 {
 		return nil, fmt.Errorf("no data provided")
 	}
+	if len(pk) == 0 {
+		return nil, fmt.Errorf("cannot update row without a primary key")
+	}
 
 	setClauses := make([]string, 0, len(data))
 	vals := make([]interface{}, 0, len(data)+len(pk))
@@ -337,6 +356,10 @@ func (d *SQLiteDriver) UpdateRow(schema, table string, pk map[string]interface{}
 func (d *SQLiteDriver) DeleteRows(schema, table string, pks []map[string]interface{}) (int64, error) {
 	if len(pks) == 0 {
 		return 0, nil
+	}
+
+	if len(pks[0]) == 0 {
+		return 0, fmt.Errorf("cannot delete rows without a primary key")
 	}
 
 	var totalAffected int64
@@ -404,7 +427,7 @@ func (d *SQLiteDriver) ExecuteQuery(query string) (*models.QueryResult, error) {
 		}
 		row := make(map[string]interface{}, len(colNames))
 		for i, name := range colNames {
-			row[name] = vals[i]
+			row[name] = normalizeVal(vals[i])
 		}
 		resultRows = append(resultRows, row)
 	}

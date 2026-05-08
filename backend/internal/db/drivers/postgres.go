@@ -6,8 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dbeditorviewer/backend/internal/models"
 	_ "github.com/jackc/pgx/v5/stdlib"
+
+	"github.com/dbeditorviewer/backend/internal/models"
 )
 
 // PostgresDriver implements Driver for PostgreSQL via pgx stdlib.
@@ -21,6 +22,18 @@ func NewPostgresDriver(url string) *PostgresDriver {
 }
 
 func (d *PostgresDriver) DBType() models.DBType { return models.DBTypePostgres }
+
+// coerceValue converts float64 (produced by JSON unmarshal) to int64 when the
+// value is a whole number.  pgx is strict about numeric types and will reject a
+// float64 bound to an int4/int8 column.
+func coerceValue(v interface{}) interface{} {
+	if f, ok := v.(float64); ok {
+		if f == float64(int64(f)) {
+			return int64(f)
+		}
+	}
+	return v
+}
 
 func (d *PostgresDriver) Connect() error {
 	sqlDB, err := sql.Open("pgx", d.url)
@@ -231,11 +244,13 @@ func (d *PostgresDriver) GetData(opts models.QueryOpts) (*models.DataResult, err
 
 	quotedTable := fmt.Sprintf(`"%s"."%s"`, opts.Schema, opts.Table)
 
-	// Count query
-	countQuery := fmt.Sprintf(`SELECT COUNT(*) FROM %s`, quotedTable)
+	// Use pg_class row estimate for large tables; fall back to exact COUNT for small ones.
 	var total int64
-	if err := d.db.QueryRow(countQuery).Scan(&total); err != nil {
-		return nil, fmt.Errorf("count query: %w", err)
+	estQuery := fmt.Sprintf(`SELECT reltuples::bigint FROM pg_class WHERE oid = '"%s"."%s"'::regclass`, opts.Schema, opts.Table)
+	if err := d.db.QueryRow(estQuery).Scan(&total); err != nil || total < 10000 {
+		if err := d.db.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s`, quotedTable)).Scan(&total); err != nil {
+			return nil, fmt.Errorf("count query: %w", err)
+		}
 	}
 
 	// Build SELECT query
@@ -285,7 +300,7 @@ func (d *PostgresDriver) GetData(opts models.QueryOpts) (*models.DataResult, err
 		}
 		row := make(map[string]interface{}, len(colNames))
 		for i, name := range colNames {
-			row[name] = vals[i]
+			row[name] = normalizeVal(vals[i])
 		}
 		resultRows = append(resultRows, row)
 	}
@@ -293,14 +308,37 @@ func (d *PostgresDriver) GetData(opts models.QueryOpts) (*models.DataResult, err
 		return nil, err
 	}
 
+	// Fetch PK columns to mark IsPrimaryKey in column defs.
+	pkSet := map[string]bool{}
+	pkRows, pkErr := d.db.Query(`
+		SELECT ku.column_name
+		FROM information_schema.table_constraints tc
+		JOIN information_schema.key_column_usage ku
+		    ON tc.constraint_name = ku.constraint_name
+		    AND tc.table_schema = ku.table_schema
+		    AND tc.table_name = ku.table_name
+		WHERE tc.constraint_type = 'PRIMARY KEY'
+		    AND tc.table_schema = $1
+		    AND tc.table_name = $2`, opts.Schema, opts.Table)
+	if pkErr == nil {
+		defer pkRows.Close()
+		for pkRows.Next() {
+			var col string
+			if pkRows.Scan(&col) == nil {
+				pkSet[col] = true
+			}
+		}
+	}
+
 	// Build column defs from column types
 	cols := make([]models.ColumnDef, len(colNames))
 	for i, ct := range colTypes {
 		nullable, _ := ct.Nullable()
 		cols[i] = models.ColumnDef{
-			Name:       ct.Name(),
-			DataType:   ct.DatabaseTypeName(),
-			IsNullable: nullable,
+			Name:         ct.Name(),
+			DataType:     ct.DatabaseTypeName(),
+			IsNullable:   nullable,
+			IsPrimaryKey: pkSet[ct.Name()],
 		}
 	}
 
@@ -328,7 +366,7 @@ func (d *PostgresDriver) InsertRow(schema, table string, data map[string]interfa
 	i := 1
 	for k, v := range data {
 		cols = append(cols, fmt.Sprintf(`"%s"`, k))
-		vals = append(vals, v)
+		vals = append(vals, coerceValue(v))
 		placeholders = append(placeholders, fmt.Sprintf("$%d", i))
 		i++
 	}
@@ -362,7 +400,7 @@ func (d *PostgresDriver) InsertRow(schema, table string, data map[string]interfa
 		}
 		result := make(map[string]interface{}, len(colNames))
 		for i, name := range colNames {
-			result[name] = vals2[i]
+			result[name] = normalizeVal(vals2[i])
 		}
 		return result, nil
 	}
@@ -373,6 +411,9 @@ func (d *PostgresDriver) UpdateRow(schema, table string, pk map[string]interface
 	if len(data) == 0 {
 		return nil, fmt.Errorf("no data provided")
 	}
+	if len(pk) == 0 {
+		return nil, fmt.Errorf("cannot update row without a primary key")
+	}
 
 	setClauses := make([]string, 0, len(data))
 	vals := make([]interface{}, 0, len(data)+len(pk))
@@ -380,14 +421,14 @@ func (d *PostgresDriver) UpdateRow(schema, table string, pk map[string]interface
 
 	for k, v := range data {
 		setClauses = append(setClauses, fmt.Sprintf(`"%s"=$%d`, k, argIdx))
-		vals = append(vals, v)
+		vals = append(vals, coerceValue(v))
 		argIdx++
 	}
 
 	whereClauses := make([]string, 0, len(pk))
 	for k, v := range pk {
 		whereClauses = append(whereClauses, fmt.Sprintf(`"%s"=$%d`, k, argIdx))
-		vals = append(vals, v)
+		vals = append(vals, coerceValue(v))
 		argIdx++
 	}
 
@@ -420,7 +461,7 @@ func (d *PostgresDriver) UpdateRow(schema, table string, pk map[string]interface
 		}
 		result := make(map[string]interface{}, len(colNames))
 		for i, name := range colNames {
-			result[name] = rowVals[i]
+			result[name] = normalizeVal(rowVals[i])
 		}
 		return result, nil
 	}
@@ -432,6 +473,10 @@ func (d *PostgresDriver) DeleteRows(schema, table string, pks []map[string]inter
 		return 0, nil
 	}
 
+	if len(pks[0]) == 0 {
+		return 0, fmt.Errorf("cannot delete rows without a primary key")
+	}
+
 	var totalAffected int64
 	for _, pk := range pks {
 		whereClauses := make([]string, 0, len(pk))
@@ -439,7 +484,7 @@ func (d *PostgresDriver) DeleteRows(schema, table string, pks []map[string]inter
 		argIdx := 1
 		for k, v := range pk {
 			whereClauses = append(whereClauses, fmt.Sprintf(`"%s"=$%d`, k, argIdx))
-			vals = append(vals, v)
+			vals = append(vals, coerceValue(v))
 			argIdx++
 		}
 		query := fmt.Sprintf(
@@ -500,7 +545,7 @@ func (d *PostgresDriver) ExecuteQuery(query string) (*models.QueryResult, error)
 		}
 		row := make(map[string]interface{}, len(colNames))
 		for i, name := range colNames {
-			row[name] = vals[i]
+			row[name] = normalizeVal(vals[i])
 		}
 		resultRows = append(resultRows, row)
 	}

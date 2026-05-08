@@ -28,45 +28,52 @@ export function AppShell() {
 
         {/* Main content */}
         <main className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-gray-900">
-          {activeTable ? (
+          {activeConnectionId ? (
             <>
-              {/* Breadcrumb */}
-              <div className="flex items-center gap-1.5 px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-sm flex-shrink-0">
-                <Database className="h-3.5 w-3.5 text-gray-500" />
-                <span className="text-gray-600 dark:text-gray-400">{activeConn?.name || activeConnectionId}</span>
-                {activeSchema && (
-                  <>
-                    <ChevronRight className="h-3.5 w-3.5 text-gray-400" />
-                    <span className="text-gray-600 dark:text-gray-400">{activeSchema}</span>
-                  </>
-                )}
-                <ChevronRight className="h-3.5 w-3.5 text-gray-400" />
-                <Table2 className="h-3.5 w-3.5 text-indigo-500" />
-                <span className="font-medium text-gray-900 dark:text-gray-100">{activeTable}</span>
-              </div>
+              {/* Breadcrumb — only shown when a table is selected */}
+              {activeTable && (
+                <div className="flex items-center gap-1.5 px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-sm flex-shrink-0">
+                  <Database className="h-3.5 w-3.5 text-gray-500" />
+                  <span className="text-gray-600 dark:text-gray-400">{activeConn?.name || activeConnectionId}</span>
+                  {activeSchema && (
+                    <>
+                      <ChevronRight className="h-3.5 w-3.5 text-gray-400" />
+                      <span className="text-gray-600 dark:text-gray-400">{activeSchema}</span>
+                    </>
+                  )}
+                  <ChevronRight className="h-3.5 w-3.5 text-gray-400" />
+                  <Table2 className="h-3.5 w-3.5 text-indigo-500" />
+                  <span className="font-medium text-gray-900 dark:text-gray-100">{activeTable}</span>
+                </div>
+              )}
 
               {/* Tab bar */}
               <div className="flex items-center gap-0 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-4 flex-shrink-0">
-                {(['data', 'schema', 'query'] as const).map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => setActiveTab(tab)}
-                    className={cn(
-                      'px-4 py-2.5 text-sm font-medium border-b-2 transition-colors capitalize',
-                      activeTab === tab
-                        ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
-                        : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-                    )}
-                  >
-                    {tab === 'data' ? 'Data' : tab === 'schema' ? 'Schema' : 'Query'}
-                  </button>
-                ))}
+                {(['data', 'schema', 'query'] as const).map((tab) => {
+                  const disabled = !activeTable && tab !== 'query'
+                  return (
+                    <button
+                      key={tab}
+                      onClick={() => !disabled && setActiveTab(tab)}
+                      disabled={disabled}
+                      className={cn(
+                        'px-4 py-2.5 text-sm font-medium border-b-2 transition-colors capitalize',
+                        activeTab === tab
+                          ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
+                          : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200',
+                        disabled && 'opacity-40 cursor-not-allowed hover:text-gray-600 dark:hover:text-gray-400'
+                      )}
+                    >
+                      {tab === 'data' ? 'Data' : tab === 'schema' ? 'Schema' : 'Query'}
+                    </button>
+                  )
+                })}
               </div>
 
               {/* Tab content */}
               <div className="flex-1 overflow-hidden">
-                {activeTab === 'data' && <DataGrid />}
-                {activeTab === 'schema' && <SchemaViewer />}
+                {activeTab === 'data' && (activeTable ? <DataGrid /> : <NoTablePlaceholder />)}
+                {activeTab === 'schema' && (activeTable ? <SchemaViewer /> : <NoTablePlaceholder />)}
                 {activeTab === 'query' && <QueryEditor />}
               </div>
             </>
@@ -77,6 +84,15 @@ export function AppShell() {
       </div>
 
       <AddConnectionDialog open={addDialogOpen} onClose={() => setAddDialogOpen(false)} />
+    </div>
+  )
+}
+
+function NoTablePlaceholder() {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center h-full">
+      <Table2 className="h-10 w-10 text-gray-300 dark:text-gray-600" />
+      <p className="text-sm text-gray-500 dark:text-gray-400">Select a table from the sidebar to view its data.</p>
     </div>
   )
 }

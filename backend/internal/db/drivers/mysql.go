@@ -253,12 +253,7 @@ func (d *MySQLDriver) GetData(opts models.QueryOpts) (*models.DataResult, error)
 		}
 		row := make(map[string]interface{}, len(colNames))
 		for i, name := range colNames {
-			v := vals[i]
-			if b, ok := v.([]byte); ok {
-				row[name] = string(b)
-			} else {
-				row[name] = v
-			}
+			row[name] = normalizeVal(vals[i])
 		}
 		resultRows = append(resultRows, row)
 	}
@@ -266,13 +261,29 @@ func (d *MySQLDriver) GetData(opts models.QueryOpts) (*models.DataResult, error)
 		return nil, err
 	}
 
+	// Fetch PK columns to mark IsPrimaryKey in column defs.
+	pkSet := map[string]bool{}
+	pkRows, pkErr := d.sqlDB.Query(`
+		SELECT COLUMN_NAME FROM information_schema.COLUMNS
+		WHERE TABLE_SCHEMA=? AND TABLE_NAME=? AND COLUMN_KEY='PRI'`, opts.Schema, opts.Table)
+	if pkErr == nil {
+		defer pkRows.Close()
+		for pkRows.Next() {
+			var col string
+			if pkRows.Scan(&col) == nil {
+				pkSet[col] = true
+			}
+		}
+	}
+
 	cols := make([]models.ColumnDef, len(colNames))
 	for i, ct := range colTypes {
 		nullable, _ := ct.Nullable()
 		cols[i] = models.ColumnDef{
-			Name:       ct.Name(),
-			DataType:   ct.DatabaseTypeName(),
-			IsNullable: nullable,
+			Name:         ct.Name(),
+			DataType:     ct.DatabaseTypeName(),
+			IsNullable:   nullable,
+			IsPrimaryKey: pkSet[ct.Name()],
 		}
 	}
 
@@ -326,6 +337,9 @@ func (d *MySQLDriver) UpdateRow(schema, table string, pk map[string]interface{},
 	if len(data) == 0 {
 		return nil, fmt.Errorf("no data provided")
 	}
+	if len(pk) == 0 {
+		return nil, fmt.Errorf("cannot update row without a primary key")
+	}
 
 	setClauses := make([]string, 0, len(data))
 	vals := make([]interface{}, 0, len(data)+len(pk))
@@ -359,6 +373,10 @@ func (d *MySQLDriver) UpdateRow(schema, table string, pk map[string]interface{},
 func (d *MySQLDriver) DeleteRows(schema, table string, pks []map[string]interface{}) (int64, error) {
 	if len(pks) == 0 {
 		return 0, nil
+	}
+
+	if len(pks[0]) == 0 {
+		return 0, fmt.Errorf("cannot delete rows without a primary key")
 	}
 
 	var totalAffected int64
@@ -426,12 +444,7 @@ func (d *MySQLDriver) ExecuteQuery(query string) (*models.QueryResult, error) {
 		}
 		row := make(map[string]interface{}, len(colNames))
 		for i, name := range colNames {
-			v := vals[i]
-			if b, ok := v.([]byte); ok {
-				row[name] = string(b)
-			} else {
-				row[name] = v
-			}
+			row[name] = normalizeVal(vals[i])
 		}
 		resultRows = append(resultRows, row)
 	}
